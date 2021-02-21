@@ -63,12 +63,12 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 				
 	logic done;
 
-	line_drawer lines (.clk(CLOCK_50), .reset(1'b0),.x0, .y0, .x1, .y1, .x, .y, .done);
+	line_drawer lines (.clk(CLOCK_50), .reset(1'b0), .x0, .y0, .x1, .y1, .x, .y, .done);
 	
 	assign LEDR[9] = done;
-	assign x0 = 0;
-	assign y0 = 0;
-	assign x1 = 240;
-	assign y1 = 240;
+	assign x0 = 20;
+	assign y0 = 20;
+	assign x1 = 210;
+	assign y1 = 210;
 
 endmodule  // DE1_SoC
