@@ -38,36 +38,36 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	enum {idle, draw, finish} ps, ns;
 	
 	// performs our swaps
-	always_comb begin
+	always_ff @(posedge clk) begin
 		if (is_steep) begin
 			if (y0 > y1) begin
-				x0_temp = y1; x1_temp = y0; y0_temp = x1;  y1_temp = x0;
-            y_step = x1 < x0 ? 1 : -1;
-            delta_x = (y0 - y1);
+				x0_temp <= y1; x1_temp <= y0; y0_temp <= x1;  y1_temp <= x0;
+            y_step <= x1 < x0 ? 1 : -1;
+            delta_x <= (y0 - y1);
          end else begin
-            x0_temp = y0; y0_temp = x0; x1_temp = y1; y1_temp = x1;
-            y_step = x0 < x1 ? 1 : -1;
-            delta_x = (y1 - y0);
+            x0_temp <= y0; y0_temp <= x0; x1_temp <= y1; y1_temp <= x1;
+            y_step <= x0 < x1 ? 1 : -1;
+            delta_x <= (y1 - y0);
 			end
-			delta_y = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+			delta_y <= (x1 > x0) ? (x1 - x0) : (x0 - x1);
 		end else begin
 			if (x0 > x1) begin
-				x0_temp = x1; x1_temp = x0; y0_temp = y1;  y1_temp = y0;
-            y_step = y1 < y0 ? 1 : -1;
-            delta_x = (x0 - x1);
+				x0_temp <= x1; x1_temp <= x0; y0_temp <= y1;  y1_temp <= y0;
+            y_step <= y1 < y0 ? 1 : -1;
+            delta_x <= (x0 - x1);
          end else begin
-            x0_temp = x0; x1_temp = x1; y0_temp = y0; y1_temp = y1;
-            y_step = y0 < y1 ? 1 : -1;
-            delta_x = (x1 - x0);
+            x0_temp <= x0; x1_temp <= x1; y0_temp <= y0; y1_temp <= y1;
+            y_step <= y0 < y1 ? 1 : -1;
+            delta_x <= (x1 - x0);
          end
-			delta_y = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+			delta_y <= (y1 > y0) ? (y1 - y0) : (y0 - y1);
 		end
 	end
 
 	always_comb begin
 		case(ps)
 			idle: ns = init ? draw : idle;
-			draw:  ns = (x_next >= x1_temp) ? finish : draw;
+			draw:  ns = (x_next == x1_temp) ? finish : draw;
 			finish: ns = done ? finish : idle;
 		endcase
 	end
@@ -103,10 +103,13 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 		   if (x_next == x1_temp) begin
 				done <= 1;
 			end
-			init <= 0;
 			ps <= ns;
-		end //else if (ps == finish) begin
-		//end
+		end else if (ps == finish) begin
+			ps <= ns;
+			done <= 0;
+			init <= 1;
+		
+		end
 	end  // always_ff
 	
 endmodule  // line_drawer
@@ -117,7 +120,7 @@ module line_drawer_testbench();
 	logic done;
 	logic [10:0] x, y;
 	
-	line_drawer dut (clk, reset, x0, x1, y0, y1, x, y, done);
+	line_drawer dut (clk, reset, x0, y0, x1, y1, x, y, done);
 
 	parameter clock_period = 100;
 	initial begin
@@ -131,8 +134,10 @@ module line_drawer_testbench();
 																				@(posedge clk);
 																				@(posedge clk);
 																				@(posedge clk);
+																				@(posedge done);
 																				@(posedge clk);
 																				@(posedge clk);
+																				@(posedge done);
 																				@(posedge clk);
 		reset <= 1; x0 <= 640; y0 <= 50; x1 <= 0; y1 <= 300; 	@(posedge clk);
 		reset<=0;												         @(posedge clk);
