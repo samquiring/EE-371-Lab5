@@ -33,6 +33,7 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	assign y_abs = (y1 > y0) ? (y1 - y0) : (y0 - y1);
 	assign x_abs = (x1 > x0) ? (x1 - x0) : (x0 - x1);
 	assign is_steep = y_abs > x_abs;
+	assign y_step = y0 < y1 ? 1 : -1;
 	
 
 	enum {idle, draw, finish} ps, ns;
@@ -42,22 +43,18 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 		if (is_steep) begin
 			if (y0 > y1) begin
 				x0_temp <= y1; x1_temp <= y0; y0_temp <= x1;  y1_temp <= x0;
-            y_step <= x1 < x0 ? 1 : -1;
             delta_x <= (y0 - y1);
          end else begin
             x0_temp <= y0; y0_temp <= x0; x1_temp <= y1; y1_temp <= x1;
-            y_step <= x0 < x1 ? 1 : -1;
             delta_x <= (y1 - y0);
 			end
 			delta_y <= (x1 > x0) ? (x1 - x0) : (x0 - x1);
 		end else begin
 			if (x0 > x1) begin
 				x0_temp <= x1; x1_temp <= x0; y0_temp <= y1;  y1_temp <= y0;
-            y_step <= y1 < y0 ? 1 : -1;
             delta_x <= (x0 - x1);
          end else begin
             x0_temp <= x0; x1_temp <= x1; y0_temp <= y0; y1_temp <= y1;
-            y_step <= y0 < y1 ? 1 : -1;
             delta_x <= (x1 - x0);
          end
 			delta_y <= (y1 > y0) ? (y1 - y0) : (y0 - y1);
@@ -79,12 +76,10 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			done <= 0;
 		end else if (ps == idle) begin
 			x <= x0_temp;
-			y <= y0_temp;
 			x_next <= x0_temp;
 			y_next <= y0_temp;
 			done <= 0;
-			error <= -(delta_x / 2);
-			init <= 0;
+			error <= (-1'b1) * (((delta_x - 1) / 2'd2) + 1'b1);
 			ps <= ns;
 		end else if (ps == draw) begin
 			if (is_steep) begin
@@ -105,10 +100,10 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			end
 			ps <= ns;
 		end else if (ps == finish) begin
-			ps <= ns;
-			done <= 0;
-			init <= 1;
-		
+			done <= 1;
+		end else begin
+			x_next <= x_next;
+			y_next <= y_next;
 		end
 	end  // always_ff
 	
@@ -129,12 +124,9 @@ module line_drawer_testbench();
 	end
 	integer i;
 	initial begin
-		reset <= 1; x0 <= 0; y0 <= 0; x1 <= 240; y1 <= 240; 	@(posedge clk);
+		reset <= 1; x0 <= 0; y0 <= 0; x1 <= 200; y1 <= 240; 	@(posedge clk);
 		reset <= 0;															@(posedge clk);
 																				@(posedge clk);
-																				@(posedge clk);
-																				@(posedge clk);
-																				@(posedge done);
 																				@(posedge clk);
 																				@(posedge clk);
 																				@(posedge done);
