@@ -21,7 +21,7 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	output logic done;
 	output logic [10:0]	x, y;
 	logic [10:0] x_next, y_next;
-	logic is_steep, y_abs, x_abs;
+	logic is_steep, y_abs, x_abs, init;
 	logic [10:0] x0_temp, x1_temp, y0_temp, y1_temp, delta_x, delta_y;
 	
 	/* You'll need to create some registers to keep track of things
@@ -34,41 +34,57 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	assign x_abs = (x1 > x0) ? (x1 - x0) : (x0 - x1);
 	assign is_steep = y_abs > x_abs;
 	
-	always_ff @(posedge clk) begin
-		if (ps == start) begin
-			if (is_steep) begin
-				x0_temp <= y0; y0_temp <= x0; x1_temp <= y1; y1_temp <= x1;
-			end else begin
-				x0_temp <= x0; x1_temp <= x1; y0_temp <= y0; y1_temp <= y1;
-			end if (x0_temp > x1_temp) begin
-				x0_temp <= x1_temp; x1_temp <= x0_temp; y0_temp <= y1_temp;  y1_temp <= y0_temp;
-			end else begin
-			x0_temp <= x0_temp; x1_temp <= x1_temp; y0_temp <= y0_temp; y1_temp <= y1_temp;
-			end
-			y_step <= y0_temp < y1_temp ? 1 : -1;
-			delta_x <= (x1_temp - x0_temp);
-			delta_y <= (y1_temp > y0_temp) ? (y1_temp - y0_temp) : (y0_temp - y1_temp);
-		end
-	end 
 
-	enum {start, draw, finish} ps, ns;
+	enum {idle, draw, finish} ps, ns;
+	
+	// performs our swaps
+	always_comb begin
+		if (is_steep) begin
+			if (y0 > y1) begin
+				x0_temp = y1; x1_temp = y0; y0_temp = x1;  y1_temp = x0;
+            y_step = x1 < x0 ? 1 : -1;
+            delta_x = (y0 - y1);
+         end else begin
+            x0_temp = y0; y0_temp = x0; x1_temp = y1; y1_temp = x1;
+            y_step = x0 < x1 ? 1 : -1;
+            delta_x = (y1 - y0);
+			end
+			delta_y = (x1 > x0) ? (x1 - x0) : (x0 - x1);
+		end else begin
+			if (x0 > x1) begin
+				x0_temp = x1; x1_temp = x0; y0_temp = y1;  y1_temp = y0;
+            y_step = y1 < y0 ? 1 : -1;
+            delta_x = (x0 - x1);
+         end else begin
+            x0_temp = x0; x1_temp = x1; y0_temp = y0; y1_temp = y1;
+            y_step = y0 < y1 ? 1 : -1;
+            delta_x = (x1 - x0);
+         end
+			delta_y = (y1 > y0) ? (y1 - y0) : (y0 - y1);
+		end
+	end
 
 	always_comb begin
 		case(ps)
-			start: ns = draw;
-			draw:  ns = done ? finish : draw;
-			finish: ns = start;
+			idle: ns = init ? draw : idle;
+			draw:  ns = (x_next >= x1_temp) ? finish : draw;
+			finish: ns = done ? finish : idle;
 		endcase
 	end
 	
 	always_ff @(posedge clk) begin
-		if (ps == start) begin
+		if (reset) begin
+			ps <= idle;
+			init <= 1;
+			done <= 0;
+		end else if (ps == idle) begin
 			x <= x0_temp;
 			y <= y0_temp;
 			x_next <= x0_temp;
 			y_next <= y0_temp;
 			done <= 0;
 			error <= -(delta_x / 2);
+			init <= 0;
 			ps <= ns;
 		end else if (ps == draw) begin
 			if (is_steep) begin
@@ -83,13 +99,48 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			end else begin
 				error <= error + delta_y;
 			end
-			x_next <= x_next + 1;
-		   if (x_next == x1) begin
+			x_next <= x_next + 1'b1;
+		   if (x_next == x1_temp) begin
 				done <= 1;
 			end
+			init <= 0;
 			ps <= ns;
 		end //else if (ps == finish) begin
 		//end
 	end  // always_ff
 	
 endmodule  // line_drawer
+
+module line_drawer_testbench();
+	logic clk, reset;
+	logic [10:0] x0, y0, x1, y1;
+	logic done;
+	logic [10:0] x, y;
+	
+	line_drawer dut (clk, reset, x0, x1, y0, y1, x, y, done);
+
+	parameter clock_period = 100;
+	initial begin
+		clk <= 0;
+		forever #(clock_period/2) clk <= ~clk;
+	end
+	integer i;
+	initial begin
+		reset <= 1; x0 <= 0; y0 <= 0; x1 <= 240; y1 <= 240; 	@(posedge clk);
+		reset <= 0;															@(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+		reset <= 1; x0 <= 640; y0 <= 50; x1 <= 0; y1 <= 300; 	@(posedge clk);
+		reset<=0;												         @(posedge clk);
+																			   @(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+																				@(posedge clk);
+																				@(posedge done);
+		$stop;
+	end
+endmodule
