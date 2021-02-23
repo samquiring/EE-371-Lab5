@@ -21,86 +21,98 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	output logic done;
 	output logic [10:0]	x, y;
 	logic [10:0] x_next, y_next;
-	logic is_steep, y_abs, x_abs, init;
-	logic [10:0] x0_temp, x1_temp, y0_temp, y1_temp, delta_x, delta_y;
+	logic is_steep, init, drawing;
+	logic [10:0] x0_temp, x1_temp, y0_temp, y1_temp, y_abs, x_abs;
 	
 	/* You'll need to create some registers to keep track of things
 	 * such as error and direction.
 	 */
-	logic signed [11:0] error;  // example - feel free to change/delete
+	logic signed [11:0] error, delta_x, delta_y;  // example - feel free to change/delete
 	logic signed [1:0] y_step;
 	
 	assign y_abs = (y1 > y0) ? (y1 - y0) : (y0 - y1);
 	assign x_abs = (x1 > x0) ? (x1 - x0) : (x0 - x1);
 	assign is_steep = y_abs > x_abs;
-	assign y_step = y0 < y1 ? 1 : -1;
+	assign y_step = y1 < y0 ? 2'b01 : 2'b11;
 	
 
 	enum {idle, draw, finish} ps, ns;
 	
 	// performs our swaps
-	always_ff @(posedge clk) begin
+	always_comb begin
 		if (is_steep) begin
 			if (y0 > y1) begin
-				x0_temp <= y1; x1_temp <= y0; y0_temp <= x1;  y1_temp <= x0;
-            delta_x <= (y0 - y1);
+				x0_temp = y1; x1_temp = y0; y0_temp = x1;  y1_temp = x0;
+            delta_x = (y0 - y1);
+				delta_y = (x0 > x1) ? (x0 - x1) : (x1 - x0);
          end else begin
-            x0_temp <= y0; y0_temp <= x0; x1_temp <= y1; y1_temp <= x1;
-            delta_x <= (y1 - y0);
+            x0_temp = y0; y0_temp = x0; x1_temp = y1; y1_temp = x1;
+            delta_x = (y1 - y0);
+				delta_y = (x1 > x0) ? (x1 - x0) : (x0 - x1);
 			end
-			delta_y <= (x1 > x0) ? (x1 - x0) : (x0 - x1);
+			x = y_next;
+			y = x_next;
 		end else begin
 			if (x0 > x1) begin
-				x0_temp <= x1; x1_temp <= x0; y0_temp <= y1;  y1_temp <= y0;
-            delta_x <= (x0 - x1);
+				x0_temp = x1; x1_temp = x0; y0_temp = y1;  y1_temp = y0;
+            delta_x = (x0 - x1);
+				delta_y = (y0 > y1) ? (y0 - y1) : (y1 - y0);
          end else begin
-            x0_temp <= x0; x1_temp <= x1; y0_temp <= y0; y1_temp <= y1;
-            delta_x <= (x1 - x0);
+            x0_temp = x0; x1_temp = x1; y0_temp = y0; y1_temp = y1;
+            delta_x = (x1 - x0);
+				delta_y = (y1 > y0) ? (y1 - y0) : (y0 - y1);
          end
-			delta_y <= (y1 > y0) ? (y1 - y0) : (y0 - y1);
+			x = x_next;
+			y = y_next;
 		end
 	end
 
+	// 
 	always_comb begin
 		case(ps)
-			idle: ns = init ? draw : idle;
-			draw:  ns = (x_next == x1_temp) ? finish : draw;
-			finish: ns = done ? finish : idle;
+			idle: begin ns = (init) ? draw : idle;
+							drawing = 0;
+							done = 0;
+					end
+			draw: begin ns = (x_next < x1_temp) ? draw : finish;
+							drawing = 1;
+							done = 0;
+					end
+			finish: begin ns = (init) ? draw : finish;
+							  drawing = 0;
+							  done = 1;
+					  end
 		endcase
 	end
 	
+	
 	always_ff @(posedge clk) begin
 		if (reset) begin
-			ps <= idle;
 			init <= 1;
-			done <= 0;
-		end else if (ps == idle) begin
-			x <= x0_temp;
+			ps <= idle;
+		end else begin
+			init <= 0;
+			ps <= ns;
+		end
+	end
+	
+
+	always_ff @(posedge clk) begin
+		if (reset) begin
 			x_next <= x0_temp;
 			y_next <= y0_temp;
-			done <= 0;
-			error <= (-1'b1) * (((delta_x - 1) / 2'd2) + 1'b1);
-			ps <= ns;
-		end else if (ps == draw) begin
-			if (is_steep) begin
-				x <= y_next;
-				y <= x_next;
-			end else begin
-				x <= x_next;
-				y <= y_next;
-			end if (error + delta_y >= 0) begin
-				y_next <= y_next + y_step;
-				error <= error + delta_y - delta_x;
-			end else begin
-				error <= error + delta_y;
-			end
+			error <= {delta_x[11], delta_x[11:1]};
+		end else if (drawing & (error + delta_y >= 0)) begin
+			y_next <= y_next + y_step;
+			error <= error + delta_y - delta_x;
 			x_next <= x_next + 1'b1;
-		   if (x_next == x1_temp) begin
-				done <= 1;
-			end
-			ps <= ns;
-		end else if (ps == finish) begin
-			done <= 1;
+		end else if (drawing) begin
+			error <= error + delta_y;
+			y_next <= y_next;
+			x_next <= x_next + 1'b1;
+		end else if (x_next == x1_temp) begin
+			x_next <= x1_temp;
+			y_next <= y1_temp;
 		end else begin
 			x_next <= x_next;
 			y_next <= y_next;
@@ -124,7 +136,7 @@ module line_drawer_testbench();
 	end
 	integer i;
 	initial begin
-		reset <= 1; x0 <= 0; y0 <= 0; x1 <= 200; y1 <= 240; 	@(posedge clk);
+		reset <= 1; x0 <= 0; y0 <= 0; x1 <= 220; y1 <= 240; 	@(posedge clk);
 		reset <= 0;															@(posedge clk);
 																				@(posedge clk);
 																				@(posedge clk);
