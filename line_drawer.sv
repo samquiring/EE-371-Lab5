@@ -24,6 +24,7 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	logic is_steep, init;
 	logic [10:0] x0_temp, x1_temp, y0_temp, y1_temp, delta_x, delta_y, y_abs, x_abs;
 	
+	
 	/* You'll need to create some registers to keep track of things
 	 * such as error and direction.
 	 */
@@ -35,7 +36,7 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	assign is_steep = y_abs > x_abs;
 	
 
-	enum {idle, draw, finish} ps, ns;
+	enum {fwait,idle, draw, finish} ps, ns;
 	
 	// performs our swaps
 	always_comb begin
@@ -66,6 +67,7 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 
 	always_comb begin
 		case(ps)
+			fwait: ns = idle;
 			idle: ns = init ? draw : idle;
 			draw:  ns = (x_next == x1_temp) ? finish : draw;
 			finish: ns = done ? finish : idle;
@@ -79,6 +81,8 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			done <= 0;
 			x_next <= x0_temp;
 			y_next <= y0_temp;
+			x <= x0_temp;
+			y <= y0_temp;
 		end
 		if (ps == idle) begin
 			x <= x0_temp;
@@ -108,10 +112,11 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			ps <= ns;
 		end else if (ps == finish) begin
 			ps <= ns;
-			done <= 0;
 			init <= 1;
+			done <= 0;
 		
 		end
+		ps<=ns;
 	end  // always_ff
 	
 endmodule  // line_drawer

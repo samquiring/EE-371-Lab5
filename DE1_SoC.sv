@@ -35,6 +35,8 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 	output VGA_SYNC_N;
 	output VGA_VS;
 	
+	logic[20:0] counter;
+	
 	assign HEX0 = '1;
 	assign HEX1 = '1;
 	assign HEX2 = '1;
@@ -43,20 +45,106 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 	assign HEX5 = '1;
 	assign LEDR[8:0] = SW[8:0];
 	
-	logic [10:0] x0, y0, x1, y1, x, y;
-	
-	VGA_framebuffer fb (.clk50(CLOCK_50), .reset(1'b0), .x, .y, .pixel_color, .pixel_write(1'b1), .VGA_R, 
-								.VGA_G, .VGA_B, .VGA_CLK, .VGA_HS, .VGA_VS,.VGA_BLANK_n(VGA_BLANK_N), .VGA_SYNC_n(VGA_SYNC_N));
-				
-	logic done, reset, pixel_color;
-
-	line_drawer lines (.clk(CLOCK_50), .reset(1'b0), .x0, .y0, .x1, .y1, .x, .y, .done);
-	
-	animator anim (.clk(CLOCK_50), .reset, .x0, .y0, .x1, .y1);
-	
+	logic reset;
 	assign reset = SW[8];
-	assign pixel_color = SW[9] ? 1'b0 : 1'b1;
+	
+	logic [10:0] x0, y0, x1, y1, x, y;
+	logic pixel_color;
+	
+	VGA_framebuffer fb (
+		.clk50			(CLOCK_50), 
+		.reset			(1'b0), 
+		.x, 
+		.y,
+		.pixel_color	(pixel_color), 
+		.pixel_write	(1'b1),
+		.VGA_R, 
+		.VGA_G, 
+		.VGA_B, 
+		.VGA_CLK, 
+		.VGA_HS, 
+		.VGA_VS,
+		.VGA_BLANK_n	(VGA_BLANK_N), 
+		.VGA_SYNC_n		(VGA_SYNC_N));
+				
+	logic done;
+
+	line_drawer lines (.clk(CLOCK_50), .reset(reset),.x0, .y0, .x1, .y1, .x, .y, .done);
 	assign LEDR[9] = done;
+	/*
+	assign x0 = 0;
+	assign y0 = 0;
+	assign x1 = 200;
+	assign y1 = 200;
+	*/
+	enum{init,draw} ps, ns;
+	always_comb begin
+		case(ps)
+			init: ns = draw;
+			draw: ns = draw;
+		endcase
+	end
+	
+	always_ff @(posedge CLOCK_50) begin
+		if(reset)
+			ps<= init;
+		else
+			ps<=ns;
+		if(ps == init) begin
+			x0 <= 0;
+			y0 <= 0;
+			x1 <= 200;
+			y1 <= 200;
+			pixel_color <= 1'b1;
+			counter <= 0;
+		end else if(ps == draw) begin
+			if(done) begin
+			counter <= counter + 1;
+			if(counter[17] == 1) begin
+				counter <= 0;
+				pixel_color <= !pixel_color;
+			end
+				if(!pixel_color) begin
+					if(y0 < 150) begin
+						y0 <= y0 + 40;
+					end else if(x0 < 600) begin
+						x0 <= x0 +20;
+					end else begin
+						x0 <= 0;
+						y0 <= 0;
+					end
+				end
+			end
+		end
+	end
 
 endmodule  // DE1_SoC
 
+module DE1_SoC_testbench();
+	logic [6:0] HEX0, HEX1, HEX2, HEX3, HEX4, HEX5;
+	logic [9:0] LEDR;
+	logic [3:0] KEY;
+	logic [9:0] SW;
+	logic clk;
+	logic [7:0] VGA_R, VGA_G, VGA_B;
+	logic VGA_BLANK_N, VGA_CLK, VGA_HS, VGA_SYNC_N, VGA_VS;
+	DE1_SoC dut(HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, clk, 
+	VGA_R, VGA_G, VGA_B, VGA_BLANK_N, VGA_CLK, VGA_HS, VGA_SYNC_N, VGA_VS);
+	
+	
+	parameter clock_period = 100;
+	initial begin
+		clk <= 0;
+		forever #(clock_period/2) clk <= ~clk;
+	end
+	integer i;
+	initial begin
+		SW[8] = 1;  @(posedge clk);
+		SW[8] = 0;  @(posedge clk);
+		for(i = 0; i < 500; i++)
+			@(posedge clk);
+																			
+		$stop;
+	end
+endmodule
+	
