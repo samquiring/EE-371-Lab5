@@ -45,30 +45,18 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 	
 	logic [10:0] x0, y0, x1, y1, x, y;
 	
-	VGA_framebuffer fb (
-		.clk50			(CLOCK_50), 
-		.reset			(1'b0), 
-		.x, 
-		.y,
-		.pixel_color	(1'b1), 
-		.pixel_write	(1'b1),
-		.VGA_R, 
-		.VGA_G, 
-		.VGA_B, 
-		.VGA_CLK, 
-		.VGA_HS, 
-		.VGA_VS,
-		.VGA_BLANK_n	(VGA_BLANK_N), 
-		.VGA_SYNC_n		(VGA_SYNC_N));
+	VGA_framebuffer fb (.clk50(CLOCK_50), .reset(1'b0), .x, .y, .pixel_color, .pixel_write(1'b1), .VGA_R, 
+								.VGA_G, .VGA_B, .VGA_CLK, .VGA_HS, .VGA_VS,.VGA_BLANK_n(VGA_BLANK_N), .VGA_SYNC_n(VGA_SYNC_N));
 				
-	logic done;
+	logic done, reset, pixel_color;
 
 	line_drawer lines (.clk(CLOCK_50), .reset(1'b0), .x0, .y0, .x1, .y1, .x, .y, .done);
 	
+	animator anim (.clk(CLOCK_50), .reset, .x0, .y0, .x1, .y1);
+	
+	assign reset = SW[8];
+	assign pixel_color = SW[9] ? 1'b0 : 1'b1;
 	assign LEDR[9] = done;
-	assign x0 = 20;
-	assign y0 = 20;
-	assign x1 = 210;
-	assign y1 = 210;
 
 endmodule  // DE1_SoC
+
