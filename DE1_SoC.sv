@@ -48,7 +48,7 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 	logic reset;
 	assign reset = SW[8];
 	
-	logic [10:0] x0, y0, x1, y1, x, y;
+	logic [10:0] x0, y0, x1, y1, x, y, x0_nxt, x1_nxt, y0_nxt, y1_nxt;
 	logic pixel_color;
 	
 	VGA_framebuffer fb (
@@ -71,48 +71,92 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 
 	line_drawer lines (.clk(CLOCK_50), .reset(reset),.x0, .y0, .x1, .y1, .x, .y, .done);
 	assign LEDR[9] = done;
-	/*
-	assign x0 = 0;
-	assign y0 = 0;
-	assign x1 = 200;
-	assign y1 = 200;
-	*/
 	enum{init,draw} ps, ns;
+	enum{left_up,left_down,right_up,right_down} pixel_ps,pixel_ns;
+	
+	logic isSteep; //tells us to make a steep function
 	always_comb begin
 		case(ps)
 			init: ns = draw;
 			draw: ns = draw;
 		endcase
+		case(pixel_ps)
+			left_up: pixel_ns = !isSteep ? left_down : left_up;
+			left_down: pixel_ns = !isSteep ? right_up : left_down;
+			right_up: pixel_ns = !isSteep ? right_down : right_up;
+			right_down: pixel_ns = !isSteep ? left_up : right_down;
+		endcase
+		
+		if(left_up) begin
+			if(isSteep) begin
+				x0 = 0;
+				y0 = 0;
+				x1 = 200;
+				y1 = 400;
+			end else begin
+				x0 = 0;
+				y0 = 0;
+				x1 = 200;
+				y1 = 200;
+			end
+		end else if(left_down) begin
+			if(isSteep) begin
+				x0 = 0;
+				y0 = 400;
+				x1 = 200;
+				y1 = 0;
+			end else begin
+				x0 = 0;
+				y0 = 200;
+				x1 = 200;
+				y1 = 0;
+			end
+		end else if(right_up) begin
+			if(isSteep) begin
+				x0 = 200;
+				y0 = 0;
+				x1 = 0;
+				y1 = 400;
+			end else begin
+				x0 = 200;
+				y0 = 0;
+				x1 = 0;
+				y1 = 200;
+			end
+		end else if(right_down) begin
+			if(isSteep) begin
+				x0 = 0;
+				y0 = 0;
+				x1 = 200;
+				y1 = 400;
+			end else begin
+				x0 = 0;
+				y0 = 0;
+				x1 = 200;
+				y1 = 200;
+			end
+		end		
 	end
-	
 	always_ff @(posedge CLOCK_50) begin
 		if(reset)
 			ps<= init;
 		else
 			ps<=ns;
 		if(ps == init) begin
-			x0 <= 0;
-			y0 <= 0;
-			x1 <= 200;
-			y1 <= 200;
+			pixel_ps <= left_up;
 			pixel_color <= 1'b1;
 			counter <= 0;
+			isSteep <= 0;
 		end else if(ps == draw) begin
 			if(done) begin
 			counter <= counter + 1;
-			if(counter[17] == 1) begin
+			if(counter[17] == 1) begin //take away for simulation
 				counter <= 0;
 				pixel_color <= !pixel_color;
 			end
 				if(!pixel_color) begin
-					if(y0 < 150) begin
-						y0 <= y0 + 40;
-					end else if(x0 < 600) begin
-						x0 <= x0 +20;
-					end else begin
-						x0 <= 0;
-						y0 <= 0;
-					end
+					isSteep <= !isSteep;
+					pixel_ps <= pixel_ns;
 				end
 			end
 		end
