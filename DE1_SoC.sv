@@ -50,13 +50,16 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 	
 	logic [10:0] x0, y0, x1, y1, x, y, x0_nxt, x1_nxt, y0_nxt, y1_nxt;
 	logic pixel_color;
+	logic erase;
+	assign erase = SW[9] ? 1'b0 : pixel_color;
+	
 	
 	VGA_framebuffer fb (
 		.clk50			(CLOCK_50), 
 		.reset			(1'b0), 
 		.x, 
 		.y,
-		.pixel_color	(pixel_color), 
+		.pixel_color	(erase), 
 		.pixel_write	(1'b1),
 		.VGA_R, 
 		.VGA_G, 
@@ -81,13 +84,14 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 			draw: ns = draw;
 		endcase
 		case(pixel_ps)
-			left_up: pixel_ns = !isSteep ? left_down : left_up;
-			left_down: pixel_ns = !isSteep ? right_up : left_down;
-			right_up: pixel_ns = !isSteep ? right_down : right_up;
-			right_down: pixel_ns = !isSteep ? left_up : right_down;
+			left_up: pixel_ns = isSteep ? left_down : left_up;
+			left_down: pixel_ns = isSteep ? right_up : left_down;
+			right_up: pixel_ns = isSteep ? right_down : right_up;
+			right_down: pixel_ns = isSteep ? left_up : right_down;
 		endcase
-		
-		if(left_up) begin
+	end
+	always_comb begin
+		if(pixel_ps == left_up) begin
 			if(isSteep) begin
 				x0 = 0;
 				y0 = 0;
@@ -99,7 +103,7 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 				x1 = 200;
 				y1 = 200;
 			end
-		end else if(left_down) begin
+		end else if(pixel_ps == left_down) begin
 			if(isSteep) begin
 				x0 = 0;
 				y0 = 400;
@@ -107,11 +111,11 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 				y1 = 0;
 			end else begin
 				x0 = 0;
-				y0 = 200;
+				y0 = 400;
 				x1 = 200;
 				y1 = 0;
 			end
-		end else if(right_up) begin
+		end else if(pixel_ps == right_up) begin
 			if(isSteep) begin
 				x0 = 200;
 				y0 = 0;
@@ -123,7 +127,7 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 				x1 = 0;
 				y1 = 200;
 			end
-		end else if(right_down) begin
+		end else begin
 			if(isSteep) begin
 				x0 = 0;
 				y0 = 0;
@@ -137,11 +141,14 @@ module DE1_SoC (HEX0, HEX1, HEX2, HEX3, HEX4, HEX5, KEY, LEDR, SW, CLOCK_50,
 			end
 		end		
 	end
+	
 	always_ff @(posedge CLOCK_50) begin
-		if(reset)
+		if(reset) begin
 			ps<= init;
-		else
+			isSteep <=0;
+		end else begin
 			ps<=ns;
+		end
 		if(ps == init) begin
 			pixel_ps <= left_up;
 			pixel_color <= 1'b1;
@@ -185,7 +192,7 @@ module DE1_SoC_testbench();
 	initial begin
 		SW[8] = 1;  @(posedge clk);
 		SW[8] = 0;  @(posedge clk);
-		for(i = 0; i < 500; i++)
+		for(i = 0; i < 4000; i++)
 			@(posedge clk);
 																			
 		$stop;

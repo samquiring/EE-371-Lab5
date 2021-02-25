@@ -20,7 +20,7 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 	input logic [10:0]	x0, y0, x1, y1;
 	output logic done;
 	output logic [10:0]	x, y;
-	logic [10:0] x_next, y_next;
+	logic signed [10:0] x_next, y_next;
 	logic is_steep, init;
 	logic [10:0] x0_temp, x1_temp, y0_temp, y1_temp, delta_x, delta_y, y_abs, x_abs;
 	
@@ -81,12 +81,8 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			done <= 0;
 			x_next <= x0_temp;
 			y_next <= y0_temp;
-			x <= x0_temp;
-			y <= y0_temp;
 		end
 		if (ps == idle) begin
-			x <= x0_temp;
-			y <= y0_temp;
 			x_next <= x0_temp;
 			y_next <= y0_temp;
 			done <= 0;
@@ -114,6 +110,8 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 			ps <= ns;
 			init <= 1;
 			done <= 0;
+			x_next <= 0;
+			y_next <= 0;
 		
 		end
 		ps<=ns;
@@ -122,36 +120,32 @@ module line_drawer(clk, reset, x0, y0, x1, y1, x, y, done);
 endmodule  // line_drawer
 
 module line_drawer_testbench();
-	logic clk, reset;
-	logic [10:0] x0, y0, x1, y1;
-	logic done;
-	logic [10:0] x, y;
-	
-	line_drawer dut (clk, reset, x0, y0, x1, y1, x, y, done);
+    logic clk, reset;
+    logic [10:0] x0, y0, x1, y1;
+    logic done;
+    logic [10:0] x, y;
 
-	parameter clock_period = 100;
-	initial begin
-		clk <= 0;
-		forever #(clock_period/2) clk <= ~clk;
-	end
-	integer i;
-	initial begin
-		reset <= 0; x0 <= 0; y0 <= 0; x1 <= 240; y1 <= 640; 	@(posedge clk);
-		reset <= 0;															@(posedge clk);
-																				@(posedge clk);
-																				@(posedge clk);
-																				@(posedge clk);
-																				@(posedge done);
-																				@(posedge clk);
-																				@(posedge clk);
-																				@(posedge clk);
-		reset <= 1; x0 <= 640; y0 <= 50; x1 <= 0; y1 <= 300; 	@(posedge clk);
-		reset<=0;												         @(posedge clk);
-																			   @(posedge clk);
-																				@(posedge clk);
-																				@(posedge clk);
-																				@(posedge clk);
-																			
-		$stop;
+    line_drawer dut (clk, reset, x0, y0, x1, y1, x, y, done);
+
+    parameter clock_period = 100;
+    initial begin
+        clk <= 0;
+        forever #(clock_period/2) clk <= ~clk;
+    end
+    integer i;
+    initial begin
+        reset <= 1; x0 <= 0; y0 <= 40; x1 <= 20; y1 <= 0;         @(posedge clk);
+        reset <= 0;                                                            @(posedge clk);
+                                                                                @(posedge done);
+        reset <= 1; x0 <= 0; y0 <= 10; x1 <= 20; y1 <= 0;         @(posedge clk);
+        reset <= 0;                                                            @(posedge clk);
+                                                                                @(posedge done);
+        reset <= 1; x0 <= 0; y0 <= 0; x1 <= 10; y1 <= 20;         @(posedge clk);
+        reset <= 0;                                                            @(posedge clk);
+                                                                                @(posedge done);
+        reset <= 1; x0 <= 0; y0 <= 20; x1 <= 10; y1 <= 0;         @(posedge clk);
+        reset <= 0;                                                            @(posedge clk);
+                                                                                @(posedge done);
+        $stop;
 	end
 endmodule
